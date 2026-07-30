@@ -332,3 +332,45 @@ And honestly? The `license` file with Base64 credentials was the most CTF thing 
 | **Key 3** | `04787ddef27c3dee1ee161b21670b4e4` |
 
 ---
+
+## Tools Used
+
+- **Nmap** - Network scanning
+- **Gobuster** - Directory enumeration
+- **Hydra** - Brute force attacks
+- **Hashcat** - Password cracking
+- **Netcat** - Reverse shell listener
+- **Burp Suite** - Request inspection (optional)
+
+---
+
+## References
+
+- [TryHackMe Mr Robot Room](https://tryhackme.com/room/mrrobot)
+- [RevShells.com](https://www.revshells.com/)
+- [GTFOBins - Nmap](https://gtfobins.github.io/gtfobins/nmap/)
+- [Hashcat Example Hashes](https://hashcat.net/wiki/doku.php?id=example_hashes)
+
+---
+
+## Disclaimer
+
+This writeup is for **educational purposes only**. Always obtain proper authorization before testing any system. The techniques shown here should only be used on systems you own or have explicit permission to test.
+
+---
+
+**Happy Hacking!** 🚀
+
+*Follow me for more CTF writeups and penetration testing content.*
+
+---
+
+## Connect with Me
+
+- **GitHub:** [github.com/yourusername](https://github.com/yourusername)
+- **LinkedIn:** [linkedin.com/in/yourusername](https://linkedin.com/in/yourusername)
+- **Twitter:** [twitter.com/yourhandle](https://twitter.com/yourhandle)
+
+---
+
+⭐ **If this writeup helped you, consider starring the repository!**
