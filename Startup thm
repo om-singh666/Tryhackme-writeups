@@ -1,0 +1,272 @@
+# TryHackMe — Startup
+
+> A beginner-friendly Linux machine that focuses on enumeration, gaining an initial foothold through FTP, credential discovery using packet analysis, and privilege escalation.
+
+---
+
+## Machine Information
+
+| Platform | Difficulty | Category |
+|----------|------------|----------|
+| TryHackMe | Easy | Linux |
+
+---
+
+# Objective
+
+The goal of this room was to compromise the target machine by moving through each phase of a real penetration test:
+
+- Enumeration
+- Initial Access
+- Post Exploitation
+- Credential Hunting
+- Privilege Escalation
+- Root Access
+
+---
+
+# Tools Used
+
+- Nmap
+- Gobuster
+- FTP
+- Netcat
+- PHP Reverse Shell
+- Python PTY
+- Wireshark
+- SSH
+- Linux Terminal
+
+---
+
+# Step 1 — Reconnaissance
+
+I started by identifying the services exposed on the target.
+
+```bash
+nmap -sCV -vv <TARGET-IP>
+```
+
+The scan revealed three important services.
+
+| Port | Service |
+|------|----------|
+|21|FTP|
+|22|SSH|
+|80|HTTP|
+
+Since multiple attack surfaces were available, I began checking each one individually.
+
+---
+
+# Step 2 — Web Enumeration
+
+Browsing the web server didn't reveal anything interesting.
+
+To discover hidden directories I performed directory brute forcing.
+
+```bash
+gobuster dir \
+-u http://<TARGET-IP> \
+-w /usr/share/wordlists/dirb/common.txt
+```
+
+Interesting discovery:
+
+```
+/files
+```
+
+This hinted that files hosted through FTP might also be accessible from the web server.
+
+---
+
+# Step 3 — FTP Enumeration
+
+The FTP server allowed anonymous authentication.
+
+```bash
+ftp <TARGET-IP>
+```
+
+Inside FTP I found:
+
+- important.jpg
+- notice.txt
+- writable ftp directory
+
+The writable directory immediately became the primary attack vector.
+
+---
+
+# Step 4 — Uploading a Reverse Shell
+
+I uploaded a PHP reverse shell into the writable FTP directory.
+
+```bash
+put php-reverse-shell.php
+```
+
+Before executing it, I prepared my listener.
+
+```bash
+nc -lvnp 1234
+```
+
+Opening the uploaded shell from the browser established a reverse shell connection.
+
+Current user:
+
+```
+www-data
+```
+
+---
+
+# Step 5 — Stabilizing the Shell
+
+Interactive shells make Linux enumeration much easier.
+
+```bash
+python3 -c 'import pty;pty.spawn("/bin/bash")'
+```
+
+After stabilizing the shell I started exploring the filesystem.
+
+I also located **recipe.txt**, which contained the answer to the first task.
+
+```
+love
+```
+
+---
+
+# Step 6 — Looking for More Information
+
+While enumerating the machine I noticed a packet capture file.
+
+```
+suspicious.pcapng
+```
+
+To analyze it comfortably, I copied it into the web-accessible directory and downloaded it to my machine.
+
+The PCAP was then opened in Wireshark.
+
+---
+
+# Step 7 — Packet Analysis
+
+Inside Wireshark I inspected multiple TCP streams.
+
+One of the conversations exposed plaintext login credentials.
+
+```
+Username : lennie
+Password : c4ntg3t3n0ughsp1c3
+```
+
+This demonstrated why transmitting credentials over insecure channels is dangerous.
+
+---
+
+# Step 8 — User Access
+
+Using the recovered credentials I logged into the machine through SSH.
+
+```bash
+ssh lennie@<TARGET-IP>
+```
+
+After authentication I located the user flag.
+
+```
+user.txt
+```
+
+User flag captured successfully.
+
+---
+
+# Step 9 — Privilege Escalation Enumeration
+
+With user-level access established, I began searching for privilege escalation opportunities.
+
+Things I checked included:
+
+- sudo permissions
+- scheduled tasks
+- writable files
+- scripts
+- file ownership
+
+A scripts directory contained files executed by root, making it the most promising attack vector.
+
+---
+
+# Step 10 — Root Access
+
+One of the root-owned scripts executed another script that was writable.
+
+By replacing the contents with a reverse shell payload and preparing a listener,
+
+```bash
+nc -lvnp 9001
+```
+
+I waited for the scheduled execution.
+
+Shortly afterwards, the listener received a connection.
+
+Verification:
+
+```bash
+whoami
+```
+
+Output:
+
+```
+root
+```
+
+Root flag successfully captured.
+
+---
+
+# Flags
+
+| Flag | Status |
+|------|--------|
+|Recipe|✅|
+|User|✅|
+|Root|✅|
+
+---
+
+# Lessons Learned
+
+This room reinforced several important penetration testing concepts.
+
+- Never overlook anonymous FTP access.
+- Writable directories can quickly lead to remote code execution.
+- Packet captures often contain valuable intelligence.
+- Enumeration is the most important phase of an engagement.
+- Small vulnerabilities become critical when chained together.
+- Always inspect scheduled tasks and root-owned scripts during privilege escalation.
+
+---
+
+# Final Thoughts
+
+Startup is an excellent beginner room because it demonstrates an end-to-end attack chain rather than focusing on a single vulnerability. It helped reinforce practical enumeration, reverse shells, packet analysis, credential discovery, and Linux privilege escalation in a realistic environment.
+
+---
+
+**Platform:** TryHackMe
+
+**Room:** Startup
+
+**Difficulty:** Easy
+
+Happy Hacking! 🚀
