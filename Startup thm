@@ -1,272 +1,148 @@
-# TryHackMe — Startup
+# TryHackMe Startup Challenge Walkthrough: Beginner-Friendly Guide to FTP Exploitation & Privilege Escalation
 
-> A beginner-friendly Linux machine that focuses on enumeration, gaining an initial foothold through FTP, credential discovery using packet analysis, and privilege escalation.
+## Introduction
 
----
+This is my walkthrough for the "Startup" box on TryHackMe. It's categorized as an easy-level machine, and honestly, it's a great one for people just getting into CTFs. It tests your basic enumeration skills, some simple exploitation, and a pretty standard privilege escalation path. I'll go through everything step-by-step so you can follow along.
 
-## Machine Information
+## Step 1: Scanning for Open Ports
 
-| Platform | Difficulty | Category |
-|----------|------------|----------|
-| TryHackMe | Easy | Linux |
+First thing I always do is fire up `nmap` to see what we're working with. I used a pretty standard scan here:
+nmap -sCV -vv <target-ip>
 
----
+text
 
-# Objective
+This scans for open ports and tries to figure out what services are running on them. The results showed me three open ports:
 
-The goal of this room was to compromise the target machine by moving through each phase of a real penetration test:
+- **Port 21:** FTP (File Transfer Protocol)
+- **Port 22:** SSH (Secure Shell)
+- **Port 80:** HTTP (Web Server)
 
-- Enumeration
-- Initial Access
-- Post Exploitation
-- Credential Hunting
-- Privilege Escalation
-- Root Access
+So we've got a web page, a way to transfer files, and a secure shell. Time to start poking around.
 
----
+## Step 2: Checking Out the Web Server
 
-# Tools Used
+With port 80 open, I pointed my browser to `http://<target-ip>`. The page was pretty barebones, just some default stuff that didn't immediately scream "vulnerability."
 
-- Nmap
-- Gobuster
-- FTP
-- Netcat
-- PHP Reverse Shell
-- Python PTY
-- Wireshark
-- SSH
-- Linux Terminal
+Usually, when a webpage is empty, there are hidden directories. So, I fired up `gobuster` to find them. I used the `dirb` common wordlist, which is a decent starting point.
+gobuster dir -u http://<target-ip> -w /usr/share/wordlists/dirb/common.txt
 
----
+text
 
-# Step 1 — Reconnaissance
+The scan came back with a directory called `/files`. I visited it, but it didn't seem to have anything useful at first glance. I made a mental note of it and moved on.
 
-I started by identifying the services exposed on the target.
+## Step 3: Diving into the FTP Service
 
-```bash
-nmap -sCV -vv <TARGET-IP>
-```
+Given that port 21 was open, the FTP server was the next logical target. I tried connecting using the default `ftp` command:
+ftp <target-ip>
 
-The scan revealed three important services.
+text
 
-| Port | Service |
-|------|----------|
-|21|FTP|
-|22|SSH|
-|80|HTTP|
+For the login, I tried the classic `anonymous:anonymous` combo. It worked! This is a common misconfiguration where the FTP server allows anyone to log in without a real account.
 
-Since multiple attack surfaces were available, I began checking each one individually.
+Once I was in, I checked what was there:
+ls
 
----
+text
 
-# Step 2 — Web Enumeration
+I saw a few files, but more importantly, I also noticed I had write permissions. Good sign – we might be able to upload a file.
 
-Browsing the web server didn't reveal anything interesting.
+## Step 4: Uploading a Reverse Shell via FTP
 
-To discover hidden directories I performed directory brute forcing.
+Since I had write access, I figured I could upload a PHP reverse shell. I had a copy of `php-reverse-shell.php` on my machine, which is a standard tool.
 
-```bash
-gobuster dir \
--u http://<TARGET-IP> \
--w /usr/share/wordlists/dirb/common.txt
-```
-
-Interesting discovery:
-
-```
-/files
-```
-
-This hinted that files hosted through FTP might also be accessible from the web server.
-
----
-
-# Step 3 — FTP Enumeration
-
-The FTP server allowed anonymous authentication.
-
-```bash
-ftp <TARGET-IP>
-```
-
-Inside FTP I found:
-
-- important.jpg
-- notice.txt
-- writable ftp directory
-
-The writable directory immediately became the primary attack vector.
-
----
-
-# Step 4 — Uploading a Reverse Shell
-
-I uploaded a PHP reverse shell into the writable FTP directory.
-
-```bash
+I switched to the directory in the FTP server where files would be accessible via the web server (it was the `ftp` directory). Then I uploaded the file.
+cd ftp
 put php-reverse-shell.php
-```
 
-Before executing it, I prepared my listener.
+text
 
-```bash
-nc -lvnp 1234
-```
+With the shell uploaded, I set up a `netcat` listener on my machine. The port I used, `5555`, was the one specified inside the reverse shell script.
+nc -lnvp 5555
 
-Opening the uploaded shell from the browser established a reverse shell connection.
+text
 
-Current user:
+Finally, to trigger the shell, I just accessed the file through the web browser: `http://<target-ip>/files/ftp/php-reverse-shell.php`. A few seconds later, boom, a connection popped up in my netcat listener. We have a shell!
 
-```
-www-data
-```
+## Step 5: Stabilizing the Reverse Shell
 
----
+The initial shell was a bit janky. It didn't have tab completion or a proper prompt. To fix that, I used Python to spawn a more stable Bash shell.
+python3 -c 'import pty; pty.spawn("/bin/bash")'
 
-# Step 5 — Stabilizing the Shell
+text
 
-Interactive shells make Linux enumeration much easier.
+This gave me a much better interactive session. The first thing I did was check the current directory. I found a file with the answer to one of the challenge's questions. The answer was `love`.
 
-```bash
-python3 -c 'import pty;pty.spawn("/bin/bash")'
-```
+## Step 6: Finding Something Interesting in the Files
 
-After stabilizing the shell I started exploring the filesystem.
+While looking around the FTP directory, I noticed a file named `suspicious.pcapng`. That's a network capture file, so it might contain some useful info.
 
-I also located **recipe.txt**, which contained the answer to the first task.
+To get it on my machine, I copied it to the web-accessible `ftp` directory:
+cp suspicious.pcapng /var/www/html/files/ftp/
 
-```
-love
-```
+text
 
----
+Then, I just downloaded it from `http://<target-ip>/files/ftp/suspicious.pcapng` and opened it in Wireshark.
 
-# Step 6 — Looking for More Information
+## Step 7: Grabbing Credentials from the PCAP
 
-While enumerating the machine I noticed a packet capture file.
+Inside Wireshark, I started looking for anything interesting. I like to follow the TCP streams to see what data is being sent in plaintext. I right-clicked on a packet and selected "Follow" -> "TCP Stream".
 
-```
-suspicious.pcapng
-```
+I cycled through a few streams until I hit Stream 7. There, in plain text, I found some credentials:
+Username: lennie
+Password: c4ntg3t3n0ughsp1c3
 
-To analyze it comfortably, I copied it into the web-accessible directory and downloaded it to my machine.
+text
 
-The PCAP was then opened in Wireshark.
+Jackpot. This is why you should always check network captures.
 
----
+## Step 8: Getting SSH Access
 
-# Step 7 — Packet Analysis
+With those credentials in hand, I tried logging in via SSH as the user `lennie`.
+ssh lennie@<target-ip>
 
-Inside Wireshark I inspected multiple TCP streams.
+text
 
-One of the conversations exposed plaintext login credentials.
+I entered the password `c4ntg3t3n0ughsp1c3`, and it worked! I was in. At this point, I could grab the user flag.
 
-```
-Username : lennie
-Password : c4ntg3t3n0ughsp1c3
-```
+## Step 9: Starting the Privilege Escalation
 
-This demonstrated why transmitting credentials over insecure channels is dangerous.
+Now that I had a user account, the goal was to get root. I started with some basic enumeration.
 
----
+First, I checked what commands `lennie` could run with `sudo`:
+sudo -l
 
-# Step 8 — User Access
+text
 
-Using the recovered credentials I logged into the machine through SSH.
+No luck here, it said `lennie` wasn't in the sudoers file.
 
-```bash
-ssh lennie@<TARGET-IP>
-```
+Next, I listed all files and directories in the home folder with `ls -la`. I noticed a directory called `scripts`. Inside it, I saw some files that looked interesting.
+cd scripts
+ls -la
 
-After authentication I located the user flag.
+text
 
-```
-user.txt
-```
+I saw a script named `planner.sh` and a few others. The `planner.sh` script was owned by root.
 
-User flag captured successfully.
+## Step 10: Escalating Privileges with a Root-Owned Script
 
----
+I took a look at what `planner.sh` does:
+cat planner.sh
 
-# Step 9 — Privilege Escalation Enumeration
+text
 
-With user-level access established, I began searching for privilege escalation opportunities.
+It looked like it was executing another script, `print.sh`. Since `planner.sh` is owned by root, if I can modify `print.sh`, it might run with root privileges.
 
-Things I checked included:
+I checked the permissions, and I had write access to `print.sh`. So, I edited the file and replaced its contents with a reverse shell payload. I used an online reverse shell generator to get a one-liner for my IP and a chosen port.
 
-- sudo permissions
-- scheduled tasks
-- writable files
-- scripts
-- file ownership
+I set up another `netcat` listener on my machine for this new shell:
+nc -lnvp 9001
 
-A scripts directory contained files executed by root, making it the most promising attack vector.
+text
 
----
+Then, I made sure `print.sh` was executed. I waited a few seconds, and then... boom, a new connection hit my listener. It was a shell with root privileges!
 
-# Step 10 — Root Access
+## Conclusion
 
-One of the root-owned scripts executed another script that was writable.
+And that's it! The box is done. This was a fun and straightforward machine that covered all the basics: scanning, web enumeration, FTP exploitation, analyzing a PCAP, and a classic privilege escalation via a writable script. It's a perfect example of how persistence and checking everything can pay off.
 
-By replacing the contents with a reverse shell payload and preparing a listener,
-
-```bash
-nc -lvnp 9001
-```
-
-I waited for the scheduled execution.
-
-Shortly afterwards, the listener received a connection.
-
-Verification:
-
-```bash
-whoami
-```
-
-Output:
-
-```
-root
-```
-
-Root flag successfully captured.
-
----
-
-# Flags
-
-| Flag | Status |
-|------|--------|
-|Recipe|✅|
-|User|✅|
-|Root|✅|
-
----
-
-# Lessons Learned
-
-This room reinforced several important penetration testing concepts.
-
-- Never overlook anonymous FTP access.
-- Writable directories can quickly lead to remote code execution.
-- Packet captures often contain valuable intelligence.
-- Enumeration is the most important phase of an engagement.
-- Small vulnerabilities become critical when chained together.
-- Always inspect scheduled tasks and root-owned scripts during privilege escalation.
-
----
-
-# Final Thoughts
-
-Startup is an excellent beginner room because it demonstrates an end-to-end attack chain rather than focusing on a single vulnerability. It helped reinforce practical enumeration, reverse shells, packet analysis, credential discovery, and Linux privilege escalation in a realistic environment.
-
----
-
-**Platform:** TryHackMe
-
-**Room:** Startup
-
-**Difficulty:** Easy
-
-Happy Hacking! 🚀
+Thanks for reading! Hopefully, this helps someone out. Happy hacking!
