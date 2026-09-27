@@ -1,17 +1,27 @@
 📚 Pentesting Notes
 
-Beginner-friendly penetration testing notes and cheatsheets written while learning.
+# TryHackMe Writeups
+
+A collection of my TryHackMe room writeups, documenting my approach, methodology, and key learnings while practicing penetration testing.
 
 ## Topics
 
 - Linux
 - Windows
-- Privilege Escalation
-- Active Directory
-- Web Security
 - Enumeration
+- Privilege Escalation
+- Web Security
+- Active Directory
+- Networking
 - Nmap
 - Burp Suite
+- Password Attacks
+- Exploitation
 
+## About
 
-> These notes are intended for educational purposes and are based on my learning journey through platforms like TryHackMe, PortSwigger, Hack The Box, and other public resources.
+These writeups document my hands-on learning and problem-solving process while working through TryHackMe rooms.
+
+The goal is to build a strong practical foundation in penetration testing and offensive security.
+
+> For educational purposes only. All content is based on authorized labs and training environments.
